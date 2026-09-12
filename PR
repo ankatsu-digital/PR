@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プレスリリース作成ツール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@600;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1D3557;
+    --navy-dark:#122036;
+    --navy-deep:#0C1830;
+    --paper:#FDFBF5;
+    --ink:#22262B;
+    --rule:#D8D2C4;
+    --gold:#C0913A;
+    --panel:#16294A;
+    --panel-field:#1C3358;
+    --panel-border:#2E4A78;
+    --panel-text:#E8ECF3;
+    --panel-sub:#9FB0CC;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:"Noto Sans JP", sans-serif;
+    background:#0A1424;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{ display:flex; min-height:100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .editor{
+    width:380px; flex:0 0 380px;
+    background:linear-gradient(180deg,var(--panel),var(--navy-deep));
+    color:var(--panel-text);
+    padding:26px 24px 60px;
+    height:100vh; overflow-y:auto;
+    border-right:1px solid #0A1830;
+  }
+  .editor::-webkit-scrollbar{ width:8px; }
+  .editor::-webkit-scrollbar-thumb{ background:#2E4A78; border-radius:4px; }
+  .brand{
+    font-family:"Zen Old Mincho", serif;
+    font-size:1.05rem; font-weight:700;
+    letter-spacing:.04em;
+    color:#fff; margin:0 0 2px;
+  }
+  .brand span{ color:var(--gold); }
+  .brand-sub{ font-size:.72rem; color:var(--panel-sub); margin:0 0 16px; }
+
+  .save-status{
+    font-size:.68rem; color:var(--panel-sub); margin:0 0 20px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .save-status .dot{
+    width:7px; height:7px; border-radius:50%; background:#4C8C5A; flex:0 0 auto;
+    transition:background .2s;
+  }
+  .save-status.saving .dot{ background:var(--gold); }
+  .save-status.error .dot{ background:#B23A3A; }
+
+  .fieldset{
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    padding:16px 16px 18px;
+    margin-bottom:16px;
+    background:rgba(255,255,255,.02);
+  }
+  .fieldset legend{
+    font-size:.78rem; font-weight:700; color:var(--gold);
+    padding:0 8px; letter-spacing:.03em;
+  }
+  .field{ margin-bottom:12px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{
+    display:block; font-size:.72rem; color:var(--panel-sub);
+    margin-bottom:5px; font-weight:500;
+  }
+  .field input[type=text], .field input[type=date], .field textarea{
+    width:100%; background:var(--panel-field); border:1px solid var(--panel-border);
+    color:#fff; border-radius:6px; padding:8px 10px; font-family:inherit;
+    font-size:.85rem; resize:vertical;
+  }
+  .field textarea{ min-height:64px; line-height:1.5; }
+  .field input:focus, .field textarea:focus{
+    outline:none; border-color:var(--gold); box-shadow:0 0 0 2px rgba(192,145,58,.25);
+  }
+  .hint{ font-size:.68rem; color:var(--panel-sub); margin-top:4px; line-height:1.4; }
+
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .btn{
+    appearance:none; border:1px solid var(--panel-border); background:var(--panel-field);
+    color:#fff; border-radius:6px; padding:8px 12px; font-size:.76rem; font-weight:500;
+    cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; gap:6px;
+    transition:background .15s, border-color .15s;
+  }
+  .btn:hover{ background:#24447A; border-color:var(--gold); }
+  .btn.primary{ background:var(--gold); border-color:var(--gold); color:#1a1204; font-weight:700; }
+  .btn.primary:hover{ background:#D6A24E; }
+  .btn.ghost{ background:transparent; }
+  .btn.small{ padding:5px 9px; font-size:.7rem; }
+  .file-btn{ position:relative; overflow:hidden; }
+  .file-btn input[type=file]{
+    position:absolute; inset:0; opacity:0; cursor:pointer;
+  }
+
+  /* ---------- Preview area ---------- */
+  .preview-wrap{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; }
+  .toolbar{
+    position:sticky; top:0; z-index:20; width:100%;
+    background:#0A1424; border-bottom:1px solid #1B2A44;
+    padding:12px 24px; display:flex; justify-content:space-between; align-items:center;
+    gap:12px;
+  }
+  .toolbar .title{ color:#fff; font-size:.85rem; font-weight:500; }
+  .toolbar .title b{ color:var(--gold); }
+  .toolbar-actions{ display:flex; gap:8px; }
+
+  .stage{ padding:32px 24px 80px; width:100%; display:flex; justify-content:center; }
+
+  #paper{
+    width:210mm; min-height:297mm;
+    background:var(--paper);
+    box-shadow:0 20px 60px rgba(0,0,0,.45);
+    position:relative;
+    overflow:hidden;
+    padding:16mm 15mm 14mm;
+    font-family:"Noto Sans JP", sans-serif;
+    color:var(--ink);
+  }
+
+  .top-row{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
+  .press-to{
+    font-family:"Zen Old Mincho", serif; font-size:1.3rem; font-weight:700;
+    border-bottom:2px solid var(--ink); padding-bottom:2px; display:inline-block;
+  }
+  .top-right{ text-align:right; font-size:.82rem; line-height:1.6; }
+
+  .title-banner{
+    background:var(--navy); color:#fff;
+    border-radius:44px;
+    text-align:center;
+    padding:18px 20px;
+    font-family:"Zen Old Mincho", serif;
+    font-weight:900;
+    font-size:1.9rem;
+    letter-spacing:.02em;
+    margin:6px 0 22px;
+  }
+
+  .lead p{ font-size:.92rem; line-height:1.9; margin:0 0 14px; }
+
+  .section-banner{
+    background:var(--navy); color:#fff; text-align:center;
+    font-family:"Zen Old Mincho", serif; font-weight:700; font-size:1.15rem;
+    padding:9px 10px; margin:26px 0 14px; letter-spacing:.03em;
+  }
+
+  .section-body p{ font-size:.88rem; line-height:1.85; margin:0 0 10px; }
+
+  .overview-box{ font-size:.87rem; }
+  .overview-box .ov-heading{ font-weight:700; margin:14px 0 8px; }
+  .overview-list{ list-style:none; margin:0; padding:0; }
+  .overview-list li{ display:flex; padding:3px 0; line-height:1.7; }
+  .overview-list .ov-label{ flex:0 0 8.5em; font-weight:500; }
+  .overview-list .ov-value{ flex:1; }
+
+  .bullet-list{ list-style:none; margin:8px 0 0; padding:0; font-size:.87rem; }
+  .bullet-list li{ padding:2px 0 2px 1.1em; text-indent:-1.1em; line-height:1.75; }
+  .bullet-list li::before{ content:"・"; }
+
+  .content-row{ display:flex; gap:26px; }
+  .content-row .col-text{ flex:1.5; min-width:0; }
+  .content-row .col-spacer{ flex:1; }
+
+  hr.divider{ border:none; border-top:1px solid var(--rule); margin:34px 0 16px; }
+
+  .footer{ text-align:center; }
+  #logoSlot{
+    width:120px; height:120px; margin:0 auto 10px;
+    display:flex; align-items:center; justify-content:center;
+    border:1px dashed var(--rule); color:#9a9284; font-size:.68rem; border-radius:4px;
+    overflow:hidden;
+  }
+  #logoSlot img{ max-width:100%; max-height:100%; object-fit:contain; }
+  .contact{ font-size:.8rem; line-height:1.9; }
+  .contact .contact-head{ font-weight:700; }
+
+  /* free-floating images layer */
+  #imageLayer{ position:absolute; inset:0; z-index:5; }
+  .free-image{
+    position:absolute; cursor:move; user-select:none;
+  }
+  .free-image img{ width:100%; display:block; border-radius:4px; box-shadow:0 4px 14px rgba(0,0,0,.25); pointer-events:none; }
+  .free-image .img-controls{
+    position:absolute; inset:0; pointer-events:none;
+  }
+  .free-image .img-del{
+    position:absolute; top:-10px; right:-10px; width:22px; height:22px; border-radius:50%;
+    background:#B23A3A; color:#fff; border:2px solid #fff; font-size:12px; line-height:1;
+    cursor:pointer; pointer-events:auto; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.3);
+  }
+  .free-image .img-resize{
+    position:absolute; bottom:-7px; right:-7px; width:16px; height:16px; border-radius:50%;
+    background:var(--gold); border:2px solid #fff; cursor:se-resize; pointer-events:auto;
+    box-shadow:0 2px 6px rgba(0,0,0,.3);
+  }
+  .free-image:hover{ outline:2px dashed var(--gold); outline-offset:3px; }
+  .drop-hint{
+    position:absolute; inset:16mm 15mm 14mm; border:2px dashed #c9bfa6; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    color:#a89a78; font-size:.85rem; pointer-events:none; z-index:1; opacity:0; transition:opacity .15s;
+  }
+  #paper.drag-over .drop-hint{ opacity:1; }
+
+  @media print{
+    body{ background:#fff; }
+    .editor, .toolbar, .no-print{ display:none !important; }
+    .app{ display:block; }
+    .preview-wrap{ display:block; }
+    .stage{ padding:0; display:block; }
+    #paper{ box-shadow:none; margin:0; width:210mm; min-height:297mm; }
+    .free-image:hover{ outline:none; }
+  }
+  @page{ size:A4; margin:0; }
+
+  @media (max-width:900px){
+    .app{ flex-direction:column; }
+    .editor{ width:100%; flex:none; height:auto; max-height:60vh; }
+    #paper{ width:100%; min-height:auto; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR EDITOR ============ -->
+  <aside class="editor">
+    <p class="brand">プレス<span>リリース</span>作成ツール</p>
+    <p class="brand-sub">右側のプレビューを見ながら入力してください。画像はプレビュー上に直接ドラッグ＆ドロップ、または配置後にドラッグで自由に動かせます。入力内容はこのブラウザに自動保存されます。</p>
+    <div class="save-status" id="saveStatus"><span class="dot"></span><span id="saveStatusText">保存済み</span></div>
+
+    <fieldset class="fieldset">
+      <legend>基本情報</legend>
+      <div class="field">
+        <label>発行日</label>
+        <input type="text" id="inDate" value="2025年10月吉日">
+      </div>
+      <div class="field">
+        <label>発行団体名</label>
+        <input type="text" id="inOrg" value="レトロなまち歩き実行委員会">
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend>タイトル</legend>
+      <div class="field">
+        <label>見出しバナー</label>
+        <input type="text" id="inTitle" value="第25回レトロなまち歩き開催">
+      </div>
+      <div class="field">
+        <label>リード文（空行で段落分け）</label>
+        <textarea id="inLead" rows="10">平素は格別のご高配を賜り、厚く御礼申し上げます。
+
+来る、10月26日（日）に洲本市の「レトロこみち」を中心に「第25回城下町洲本レトロなまち歩き」を開催いたします。当日は、島内外から約30店舗が出店し、昭和レトロな雰囲気の中で買い物や飲食を楽しみながら、まち歩きを満喫できるイベントとなっております。
+
+また、2025年が「昭和100年」にあたることから、前回開催時にご好評いただきましたテーマ「レトロ昭和100年祭」を引き継ぎ、今回は「レトロ昭和100年祭 FINAL」と題して開催いたします。会場では、昭和時代の洲本や淡路島の風景・暮らしを振り返る「昭和100年写真展」に加え、淡路鉄道の特集コーナーを設け、懐かしさと新たな発見を楽しんでいただける内容となっております。
+
+ご多忙の折とは存じますが、ぜひ本イベントの告知ならびに当日のご取材をご検討いただけますと幸いです。</textarea>
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend>セクション①（開催概要）</legend>
+      <div class="field">
+        <label>見出し</label>
+        <input type="text" id="inSec1Title" value="イベント概要">
+      </div>
+      <div class="field">
+        <label>本文</label>
+        <textarea id="inSec1Body" rows="6">「レトロなまちあるき」は、洲本の町ににぎわいを取り戻すため、地元住民が中心となり2012年から続けているイベントです。歴史ある街並みを舞台に、商店街や地域の人々が一体となって多彩な催しを展開し、毎回多くの来場者でにぎわいます。第25回となる今回は、さらに充実した内容で開催。懐かしさと新しさが交差するレトロなまち歩きを、ぜひご体感ください。</textarea>
+      </div>
+      <div class="field">
+        <label>開催概要リスト（1行に「項目：内容」）</label>
+        <textarea id="inOverview" rows="5">イベント名称：「第25回城下町洲本レトロなまちあるき」
+主催：レトロこみち協同組合・レトロなまち歩き実行委員会
+開催期間：10月26日（日）10時から16時
+開催場所：レトロこみち周辺</textarea>
+        <div class="btn-row">
+          <label class="btn small file-btn">CSVから読込<input type="file" id="csvOverview" accept=".csv,text/csv"></label>
+        </div>
+        <p class="hint">CSVは「項目,内容」の2列（見出し行なし）。1行目から項目・内容が並ぶ形式に対応しています。</p>
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend>セクション②（特徴・体験）</legend>
+      <div class="field">
+        <label>見出し</label>
+        <input type="text" id="inSec2Title" value="まちを歩きながら様々な昭和体験が">
+      </div>
+      <div class="field">
+        <label>リード文（任意）</label>
+        <textarea id="inSec2Intro" rows="3">レトロなまち歩きでは、大学生、高校生による企画出店や、老若男女を問わず楽しめるイベントがございます。</textarea>
+      </div>
+      <div class="field">
+        <label>箇条書きリスト（1行1項目）</label>
+        <textarea id="inBullets" rows="10">旧益習館書院でのお茶会
+城下町を歩く子ども武者行列
+鱧汁のふるまい（先着100名）
+プロ演奏家の生演奏。
+いろんな料理が楽しめるキッチンカー
+洲本実業高校生の間伐材を使った工作体験
+昭和の淡路島の姿を伝える写真を100枚展示する写真展
+淡路鉄道の特集
+淡路牛などが当たるスタンプラリー</textarea>
+        <div class="btn-row">
+          <label class="btn small file-btn">CSVから読込<input type="file" id="csvBullets" accept=".csv,text/csv"></label>
+        </div>
+        <p class="hint">CSVは1列・1行1項目の形式に対応しています（先頭列のみ使用）。</p>
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend>画像</legend>
+      <div class="field">
+        <div class="btn-row">
+          <label class="btn small file-btn">画像を追加<input type="file" id="imgAdd" accept="image/*" multiple></label>
+          <button class="btn small ghost" id="btnClearImages">画像をすべて削除</button>
+        </div>
+        <p class="hint">追加した画像はプレビュー上でドラッグして移動、右下の丸いハンドルでサイズ変更ができます。プレビューへ直接ドラッグ＆ドロップでも追加できます。</p>
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend>ロゴ</legend>
+      <div class="field">
+        <div class="btn-row">
+          <label class="btn small file-btn">ロゴをアップロード<input type="file" id="logoAdd" accept="image/*"></label>
+          <button class="btn small ghost" id="btnClearLogo">ロゴを削除</button>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="fieldset">
+      <legend>報道関係者様お問い合わせ先</legend>
+      <div class="field"><label>団体名</label><input type="text" id="cOrg" value="レトロなまち歩き実行委員会"></div>
+      <div class="field"><label>代表者</label><input type="text" id="cRep" value="代表：野口純子"></div>
+      <div class="field"><label>広報担当</label><input type="text" id="cStaff" value="広報担当：内田"></div>
+      <div class="field"><label>電話番号</label><input type="text" id="cTel" value="TEL：070-8374-1521"></div>
+      <div class="field"><label>メールアドレス</label><input type="text" id="cMail" value="MAIL：sumotoretro.walk@outlook.jp"></div>
+      <div class="field"><label>備考</label><input type="text" id="cNote" value="※恐れ入りますが、お電話ではなく、メールにてご連絡いただけますと幸いです。"></div>
+    </fieldset>
+
+    <div class="btn-row">
+      <button class="btn ghost small" id="btnReset">保存データを消して最初からやり直す</button>
+    </div>
+  </aside>
+
+  <!-- ============ PREVIEW ============ -->
+  <main class="preview-wrap">
+    <div class="toolbar">
+      <div class="title">プレビュー <b>A4</b></div>
+      <div class="toolbar-actions">
+        <button class="btn primary" id="btnPrint">PDF / 印刷で出力</button>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div id="paper">
+        <div class="drop-hint">画像をここにドロップして配置</div>
+
+        <div class="top-row">
+          <div class="press-to">報道各位</div>
+          <div class="top-right">
+            <div id="outDate">2025年10月吉日</div>
+            <div id="outOrg">レトロなまち歩き実行委員会</div>
+          </div>
+        </div>
+
+        <div class="title-banner" id="outTitle">第25回レトロなまち歩き開催</div>
+
+        <div class="lead" id="outLead"></div>
+
+        <div class="section-banner" id="outSec1Title">イベント概要</div>
+        <div class="content-row">
+          <div class="col-text section-body">
+            <p id="outSec1Body"></p>
+            <div class="overview-box">
+              <div class="ov-heading">【開催概要】</div>
+              <ul class="overview-list" id="outOverviewList"></ul>
+            </div>
+          </div>
+          <div class="col-spacer"></div>
+        </div>
+
+        <div class="section-banner" id="outSec2Title">まちを歩きながら様々な昭和体験が</div>
+        <div class="content-row">
+          <div class="col-text section-body">
+            <p id="outSec2Intro"></p>
+            <ul class="bullet-list" id="outBulletList"></ul>
+          </div>
+          <div class="col-spacer"></div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="footer">
+          <div id="logoSlot">ロゴ</div>
+          <div class="contact">
+            <div class="contact-head">〈報道関係者様からのお問い合わせ先〉</div>
+            <div id="outCOrg">レトロなまち歩き実行委員会</div>
+            <div><span id="outCRep">代表：野口純子</span>　<span id="outCStaff">広報担当：内田</span></div>
+            <div id="outCTel">TEL：070-8374-1521</div>
+            <div id="outCMail">MAIL：sumotoretro.walk@outlook.jp</div>
+            <div id="outCNote" style="font-size:.72rem; color:#555; margin-top:4px;">※恐れ入りますが、お電話ではなく、メールにてご連絡いただけますと幸いです。</div>
+          </div>
+        </div>
+
+        <div id="imageLayer"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const STORAGE_KEY = 'press_release_state_v1';
+
+  function escapeHtml(str){
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  const textInputIds = ['inDate','inOrg','inTitle','inSec1Title','inSec2Title',
+    'cOrg','cRep','cStaff','cTel','cMail','cNote'];
+  const outMap = {
+    inDate:'outDate', inOrg:'outOrg', inTitle:'outTitle',
+    inSec1Title:'outSec1Title', inSec2Title:'outSec2Title',
+    cOrg:'outCOrg', cRep:'outCRep', cStaff:'outCStaff',
+    cTel:'outCTel', cMail:'outCMail', cNote:'outCNote'
+  };
+  function refreshSimpleBindings(){
+    textInputIds.forEach(id => { $(outMap[id]).textContent = $(id).value; });
+  }
+  textInputIds.forEach(id => $(id).addEventListener('input', () => {
+    $(outMap[id]).textContent = $(id).value;
+    scheduleSave();
+  }));
+
+  function updateLead(){
+    const paras = $('inLead').value.split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean);
+    $('outLead').innerHTML = paras.map(p=>'<p>'+escapeHtml(p).replace(/\n/g,'<br>')+'</p>').join('');
+  }
+  $('inLead').addEventListener('input', ()=>{ updateLead(); scheduleSave(); });
+
+  function updateOverview(){
+    const lines = $('inOverview').value.split('\n').map(l=>l.trim()).filter(Boolean);
+    const html = lines.map(line=>{
+      const idx = line.search(/[:：]/);
+      if(idx>-1){
+        const label = line.slice(0,idx).trim();
+        const value = line.slice(idx+1).trim();
+        return '<li><span class="ov-label">'+escapeHtml(label)+'</span><span class="ov-value">'+escapeHtml(value)+'</span></li>';
+      }
+      return '<li><span class="ov-value">'+escapeHtml(line)+'</span></li>';
+    }).join('');
+    $('outOverviewList').innerHTML = html;
+  }
+  $('inOverview').addEventListener('input', ()=>{ updateOverview(); scheduleSave(); });
+
+  function updateSec1Body(){ $('outSec1Body').textContent = $('inSec1Body').value; }
+  $('inSec1Body').addEventListener('input', ()=>{ updateSec1Body(); scheduleSave(); });
+
+  function updateSec2Intro(){ $('outSec2Intro').textContent = $('inSec2Intro').value; }
+  $('inSec2Intro').addEventListener('input', ()=>{ updateSec2Intro(); scheduleSave(); });
+
+  function updateBullets(){
+    const lines = $('inBullets').value.split('\n')
+      .map(l=>l.trim().replace(/^[・\-\*]\s*/,''))
+      .filter(Boolean);
+    $('outBulletList').innerHTML = lines.map(l=>'<li>'+escapeHtml(l)+'</li>').join('');
+  }
+  $('inBullets').addEventListener('input', ()=>{ updateBullets(); scheduleSave(); });
+
+  function refreshAllOutputs(){
+    refreshSimpleBindings();
+    updateLead();
+    updateOverview();
+    updateSec1Body();
+    updateSec2Intro();
+    updateBullets();
+  }
+
+  // ---------- CSV import ----------
+  function readCsv(file, cb){
+    const reader = new FileReader();
+    reader.onload = e => cb(e.target.result);
+    reader.readAsText(file, 'utf-8');
+  }
+  function parseCsvLine(line){
+    const out = []; let cur=''; let inQ=false;
+    for(let i=0;i<line.length;i++){
+      const c = line[i];
+      if(c === '"'){ inQ = !inQ; continue; }
+      if(c === ',' && !inQ){ out.push(cur); cur=''; continue; }
+      cur += c;
+    }
+    out.push(cur);
+    return out.map(s=>s.trim());
+  }
+  $('csvOverview').addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    readCsv(f, text=>{
+      const rows = text.split(/\r?\n/).filter(r=>r.trim());
+      const lines = rows.map(r=>{
+        const cols = parseCsvLine(r);
+        return cols.length>1 ? cols[0]+'：'+cols.slice(1).join(' ') : cols[0];
+      });
+      $('inOverview').value = lines.join('\n');
+      updateOverview();
+      scheduleSave();
+    });
+    e.target.value = '';
+  });
+  $('csvBullets').addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    readCsv(f, text=>{
+      const rows = text.split(/\r?\n/).filter(r=>r.trim());
+      const lines = rows.map(r=>parseCsvLine(r)[0]);
+      $('inBullets').value = lines.join('\n');
+      updateBullets();
+      scheduleSave();
+    });
+    e.target.value = '';
+  });
+
+  // ---------- logo ----------
+  function setLogo(dataUrl){
+    $('logoSlot').innerHTML = dataUrl ? '<img src="'+dataUrl+'" alt="logo">' : 'ロゴ';
+  }
+  $('logoAdd').addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{ setLogo(ev.target.result); scheduleSave(); };
+    reader.readAsDataURL(f);
+    e.target.value = '';
+  });
+  $('btnClearLogo').addEventListener('click', ()=>{ setLogo(null); scheduleSave(); });
+  function getLogoSrc(){
+    const img = $('logoSlot').querySelector('img');
+    return img ? img.getAttribute('src') : null;
+  }
+
+  // ---------- free-floating images ----------
+  const paper = $('paper');
+  const imageLayer = $('imageLayer');
+  let addCount = 0;
+
+  function addImageFromDataUrl(dataUrl, pos){
+    const wrapper = document.createElement('div');
+    wrapper.className = 'free-image';
+    const left = pos && pos.left != null ? pos.left : (52 + (addCount%3)*3);
+    const top  = pos && pos.top  != null ? pos.top  : (24 + Math.floor(addCount/3)*10);
+    const width = pos && pos.width != null ? pos.width : 30;
+    wrapper.style.left = clamp(left,-5,96) + '%';
+    wrapper.style.top = clamp(top,-5,96) + '%';
+    wrapper.style.width = clamp(width,8,92) + '%';
+    wrapper.innerHTML =
+      '<img src="'+dataUrl+'" draggable="false">' +
+      '<div class="img-controls no-print">' +
+        '<div class="img-del">✕</div>' +
+        '<div class="img-resize"></div>' +
+      '</div>';
+    imageLayer.appendChild(wrapper);
+    makeDraggable(wrapper);
+    makeResizable(wrapper.querySelector('.img-resize'), wrapper);
+    wrapper.querySelector('.img-del').addEventListener('click', ev=>{
+      ev.stopPropagation();
+      wrapper.remove();
+      scheduleSave();
+    });
+    addCount++;
+  }
+
+  function addImageFromFile(file, pos){
+    const reader = new FileReader();
+    reader.onload = e => { addImageFromDataUrl(e.target.result, pos); scheduleSave(); };
+    reader.readAsDataURL(file);
+  }
+
+  function collectImages(){
+    return Array.from(imageLayer.children).map(el => ({
+      src: el.querySelector('img').getAttribute('src'),
+      left: parseFloat(el.style.left),
+      top: parseFloat(el.style.top),
+      width: parseFloat(el.style.width)
+    }));
+  }
+
+  function makeDraggable(el){
+    let startX, startY, startLeftPct, startTopPct, rect;
+    el.addEventListener('pointerdown', e=>{
+      if(e.target.closest('.img-del') || e.target.closest('.img-resize')) return;
+      e.preventDefault();
+      rect = paper.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY;
+      startLeftPct = parseFloat(el.style.left);
+      startTopPct = parseFloat(el.style.top);
+      el.setPointerCapture(e.pointerId);
+      function onMove(ev){
+        const dxPct = (ev.clientX - startX) / rect.width * 100;
+        const dyPct = (ev.clientY - startY) / rect.height * 100;
+        el.style.left = clamp(startLeftPct + dxPct, -5, 96) + '%';
+        el.style.top = clamp(startTopPct + dyPct, -5, 96) + '%';
+      }
+      function onUp(ev){
+        el.releasePointerCapture(ev.pointerId);
+        el.removeEventListener('pointermove', onMove);
+        el.removeEventListener('pointerup', onUp);
+        scheduleSave();
+      }
+      el.addEventListener('pointermove', onMove);
+      el.addEventListener('pointerup', onUp);
+    });
+  }
+
+  function makeResizable(handle, wrapper){
+    handle.addEventListener('pointerdown', e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = paper.getBoundingClientRect();
+      const startX = e.clientX;
+      const startWidthPct = parseFloat(wrapper.style.width);
+      handle.setPointerCapture(e.pointerId);
+      function onMove(ev){
+        const dxPct = (ev.clientX - startX) / rect.width * 100;
+        wrapper.style.width = clamp(startWidthPct + dxPct, 8, 92) + '%';
+      }
+      function onUp(ev){
+        handle.releasePointerCapture(ev.pointerId);
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        scheduleSave();
+      }
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+    });
+  }
+
+  $('imgAdd').addEventListener('change', e=>{
+    Array.from(e.target.files).forEach(f=>addImageFromFile(f));
+    e.target.value = '';
+  });
+  $('btnClearImages').addEventListener('click', ()=>{
+    imageLayer.innerHTML = '';
+    scheduleSave();
+  });
+
+  paper.addEventListener('dragover', e=>{
+    e.preventDefault();
+    paper.classList.add('drag-over');
+  });
+  paper.addEventListener('dragleave', ()=> paper.classList.remove('drag-over'));
+  paper.addEventListener('drop', e=>{
+    e.preventDefault();
+    paper.classList.remove('drag-over');
+    const rect = paper.getBoundingClientRect();
+    const leftPct = (e.clientX - rect.left) / rect.width * 100;
+    const topPct = (e.clientY - rect.top) / rect.height * 100;
+    const files = Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/'));
+    files.forEach((f,i)=>addImageFromFile(f, {left:leftPct + i*3, top:topPct + i*3}));
+  });
+
+  // ---------- toolbar actions ----------
+  $('btnPrint').addEventListener('click', ()=> window.print());
+  $('btnReset').addEventListener('click', async ()=>{
+    if(confirm('保存されている入力内容と画像をすべて消去して最初からやり直しますか？この操作は取り消せません。')){
+      try{ await window.storage.delete(STORAGE_KEY, false); }catch(e){}
+      location.reload();
+    }
+  });
+
+  // ---------- persistence (window.storage, personal/private) ----------
+  const statusEl = $('saveStatus');
+  const statusText = $('saveStatusText');
+  function setStatus(mode){
+    statusEl.classList.remove('saving','error');
+    if(mode==='saving'){ statusEl.classList.add('saving'); statusText.textContent = '保存中…'; }
+    else if(mode==='error'){ statusEl.classList.add('error'); statusText.textContent = '保存に失敗しました'; }
+    else { statusText.textContent = '保存済み'; }
+  }
+
+  function gatherState(){
+    const state = { contact:{} };
+    ['inDate','inOrg','inTitle','inLead','inSec1Title','inSec1Body','inOverview',
+     'inSec2Title','inSec2Intro','inBullets','cOrg','cRep','cStaff','cTel','cMail','cNote']
+     .forEach(id => state[id] = $(id).value);
+    state.images = collectImages();
+    state.logo = getLogoSrc();
+    return state;
+  }
+
+  let saveTimer = null;
+  function scheduleSave(){
+    setStatus('saving');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 600);
+  }
+  async function doSave(){
+    try{
+      const state = gatherState();
+      const result = await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+      if(result){ setStatus('saved'); } else { setStatus('error'); }
+    }catch(err){
+      console.error('保存エラー', err);
+      setStatus('error');
+    }
+  }
+
+  async function loadState(){
+    let loaded = null;
+    try{
+      const result = await window.storage.get(STORAGE_KEY, false);
+      if(result && result.value){ loaded = JSON.parse(result.value); }
+    }catch(err){
+      // no saved data yet, or read error - fall back to defaults already in the HTML
+      loaded = null;
+    }
+    if(loaded){
+      ['inDate','inOrg','inTitle','inLead','inSec1Title','inSec1Body','inOverview',
+       'inSec2Title','inSec2Intro','inBullets','cOrg','cRep','cStaff','cTel','cMail','cNote']
+       .forEach(id => { if(typeof loaded[id] === 'string') $(id).value = loaded[id]; });
+      setLogo(loaded.logo || null);
+      imageLayer.innerHTML = '';
+      (loaded.images || []).forEach(img => addImageFromDataUrl(img.src, img));
+    }
+    refreshAllOutputs();
+    setStatus('saved');
+  }
+
+  loadState();
+})();
+</script>
+</body>
+</html>
